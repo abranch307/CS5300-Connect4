@@ -7,11 +7,16 @@ class C4AI:
         self.reward = 0
         self.discReward = .5
         self.learnRate = .1
+        self.costs = []
         self.yhat = tf.placeholder(tf.float32, [None, 1])
-        self.w1 = tf.Variable(tf.truncated_normal([input_size, h1_size]))
-        self.b1 = tf.Variable(tf.truncated_normal([1, h1_size]))
-        self.w2 = tf.Variable(tf.truncated_normal([h1_size, output_size]))
-        self.b2 = tf.Variable(tf.truncated_normal([1, output_size]))
+        self.w1 = tf.constant(np.random.rand(input_size, h1_size), np.float32)
+        self.b1 = tf.constant(np.ones((1, h1_size), np.float32))
+        self.w2 = tf.constant(np.random.rand(h1_size, output_size), np.float32)
+        self.b2 = tf.constant(np.ones((1, output_size), np.float32))
+        #self.w1 = tf.constant(tf.truncated_normal([input_size, h1_size]), name='W1')
+        #self.b1 = tf.constant(tf.truncated_normal([1, h1_size]), name='b1')
+        #self.w2 = tf.constant(tf.truncated_normal([h1_size, output_size]), name='W2')
+        #self.b2 = tf.constant(tf.truncated_normal([1, output_size]), name='b2')
 
     def sigma(self, x):
         return tf.div(tf.constant(1.0), tf.add(tf.constant(1.0), tf.exp(tf.neg(x))))
@@ -79,6 +84,7 @@ class C4AI:
         currentState[np.where(currentState == 'black')] = -1
         currentState[np.where(currentState == 'red')] = 1
         currentState[np.equal(currentState, None)] = 0
+        currentState = np.array(currentState, np.float32)
 
         #Separate move states from their columns and convert NextMoves into input vectors
         nextStates = []
@@ -90,40 +96,75 @@ class C4AI:
             nextStates.append(np.ravel(st[:7]))
             Columns.append(st[7])
 
-        nextStates = np.array(nextStates)
+        nextStates = np.array(nextStates, np.float32)
         Columns = np.array(Columns)
-        cStateInput = tf.constant(currentState) #Doesn't work currently (trying to convert ndarray to Tensorflow variable
-        nStatesInput = tf.constant(nextStates) #Doesn't work currently (trying to convert ndarray to Tensorflow variable
 
-        #Perform forward propagation on current state to get reward value
-        preR = self.forwardProp(cStateInput)
+        with tf.Session() as session:
+            #Convert ndarrays into tensorflow constants
+            cStateInput = tf.constant(currentState, name='cStateInput')
+            nStatesInput = tf.constant(nextStates, name='nStatesInput')
 
-        #Perform forward propagation on next states to see which has higher outcome
-        futR = self.forwardProp(nStatesInput)
+            #Perform forward propagation on current state to get reward value
+            preR = tf.Variable(self.forwardProp(cStateInput), name='previousReward')
 
-        #Choose future based on policy (max, or random)
-        chosenIndex = np.argmax(futR)
-        move = Columns(chosenIndex)
+            #Perform forward propagation on next states to see which has higher outcome
+            futR = tf.Variable(self.forwardProp(nStatesInput), name='futureReward')
 
-        #Choose are random move from states
-        chosenIndex = random.randint(0, (Columns.shape[0] - 1))
-        move = Columns(chosenIndex)
+            # Initialize all variables
+            model = tf.initialize_all_variables()
+            session.run(model)
 
-        #Calculate current reward
-        if CurPlayerWin:
-            reward = 50
-        elif OpponentWin:
-            reward = -50
-        elif BoardFull:
-            reward = 0.5
-        else:
-            reward = 0.5
+            #Find current state's reward (for sake of curiousity, not really needed to be done here)
+            pr = session.run(preR)
+            print(pr)
 
-        #Calculate error cost
-        cost = (self.discReward * self.forwardProp(nextStates[chosenIndex])) - preR
+            #Find rewards for all next states
+            fr = session.run(futR)
+            fr = np.array(fr, np.float32)
+            print(fr)
 
-        #Perform backpropagation based on error
-        step = tf.train.GradientDescentOptimizer(self.learnRate).minimize(cost)
+            '''
+                I need to base the below move selection on a policy
+            '''
+            #Choose future based on policy (max, or random)
+            chosenIndex = np.argmax(fr)
+            move = Columns[chosenIndex]
+
+            #Choose are random move from states
+            chosenIndex = random.randint(0, (Columns.shape[0] - 1))
+            move = Columns[chosenIndex]
+
+            #Calculate current reward
+            if CurPlayerWin:
+                reward = 50
+            elif OpponentWin:
+                reward = -50
+            elif BoardFull:
+                reward = 0.5
+            else:
+                reward = 0.5
+
+            #Define model for our error equation
+            chosenNextState = tf.constant(np.matrix(nextStates[chosenIndex]), np.float32)
+            error = tf.Variable(self.discReward * self.forwardProp(chosenNextState) - self.forwardProp(cStateInput))
+
+            #Calculate error cost (for curiosity purposes, not really needed here...)
+            cost = (self.discReward * fr[chosenIndex]) - pr
+            finalCost = tf.constant(cost, np.float32, name='finalcost')
+
+            # Define backpropagation calculation
+            train_op = tf.train.GradientDescentOptimizer(self.learnRate).minimize(error)
+
+            # Initialize all variables
+            model = tf.initialize_all_variables()
+            session.run(model)
+
+            #Calculate error
+            #print(session.run(cost))
+
+            #Perform backpropagration
+            self.costs.append(session.run(train_op))
+            print(self.costs)
 
         #Return next move
-        return move[0]
+        return chosenIndex
