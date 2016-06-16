@@ -13,10 +13,12 @@ class C4AI:
         self.b1 = tf.constant(np.ones((1, h1_size), np.float32))
         self.w2 = tf.constant(np.random.rand(h1_size, output_size), np.float32)
         self.b2 = tf.constant(np.ones((1, output_size), np.float32))
-        #self.w1 = tf.constant(tf.truncated_normal([input_size, h1_size]), name='W1')
-        #self.b1 = tf.constant(tf.truncated_normal([1, h1_size]), name='b1')
-        #self.w2 = tf.constant(tf.truncated_normal([h1_size, output_size]), name='W2')
-        #self.b2 = tf.constant(tf.truncated_normal([1, output_size]), name='b2')
+        #self.w1 = tf.Variable(tf.truncated_normal([input_size, h1_size], stddev=0.001), name='W1')
+        #self.b1 = tf.constant(tf.truncated_normal([1, h1_size], stddev=0.001), name='b1')
+        #self.w2 = tf.Variable(tf.truncated_normal([h1_size, output_size], stddev=0.001), name='W2')
+        #self.b2 = tf.constant(tf.truncated_normal([1, output_size], stddev=0.001), name='b2')
+        #self.w1 = tf.Variable(np.random.rand(input_size, h1_size).astype(np.float32), name='W1')
+        #self.w2 = tf.Variable(np.random.rand(h1_size, output_size).astype(np.float32), name='W2')
 
     def sigma(self, x):
         return tf.div(tf.constant(1.0), tf.add(tf.constant(1.0), tf.exp(tf.neg(x))))
@@ -100,6 +102,12 @@ class C4AI:
         Columns = np.array(Columns)
 
         with tf.Session() as session:
+            # Initialize all variables
+            model = tf.initialize_all_variables()
+            session.run(model)
+            #session.run(self.w1)
+            #session.run(self.w2)
+
             #Convert ndarrays into tensorflow constants
             cStateInput = tf.constant(currentState, name='cStateInput')
             nStatesInput = tf.constant(nextStates, name='nStatesInput')
@@ -168,7 +176,9 @@ class C4AI:
 
             #Perform backpropagration
             self.costs.append(session.run(train_op))
+            print('Backpropagation with gradient descent results')
             print(self.costs)
+            print('')
 
             #Print current weights
             print('W1: ')
