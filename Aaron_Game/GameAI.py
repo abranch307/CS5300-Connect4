@@ -8,7 +8,7 @@ class C4AI:
         self.discReward = .5
         self.learnRate = .1
         self.costs = []
-        self.yhat = tf.placeholder(tf.float32, [None, 1])
+        #self.yhat = tf.placeholder(tf.float32, [None, 1])
         self.w1 = tf.constant(np.random.rand(input_size, h1_size), np.float32)
         self.b1 = tf.constant(np.ones((1, h1_size), np.float32))
         self.w2 = tf.constant(np.random.rand(h1_size, output_size), np.float32)
@@ -116,12 +116,16 @@ class C4AI:
 
             #Find current state's reward (for sake of curiousity, not really needed to be done here)
             pr = session.run(preR)
+            print('Reward for previous state:')
             print(pr)
+            print('\n')
 
             #Find rewards for all next states
             fr = session.run(futR)
             fr = np.array(fr, np.float32)
+            print('Supposed future rewards are: ')
             print(fr)
+            print('\n')
 
             '''
                 I need to base the below move selection on a policy
@@ -136,35 +140,43 @@ class C4AI:
 
             #Calculate current reward
             if CurPlayerWin:
-                reward = 50
+                self.reward = 50
             elif OpponentWin:
-                reward = -50
+                self.reward = -50
             elif BoardFull:
-                reward = 0.5
+                self.reward = 0.5
             else:
-                reward = 0.5
+                self.reward = 0.5
 
             #Define model for our error equation
             chosenNextState = tf.constant(np.matrix(nextStates[chosenIndex]), np.float32)
-            error = tf.Variable(self.discReward * self.forwardProp(chosenNextState) - self.forwardProp(cStateInput))
+            error = tf.Variable(self.reward + (self.discReward * self.forwardProp(chosenNextState)) - self.forwardProp(cStateInput))
+            errorsq = tf.square(error)
 
             #Calculate error cost (for curiosity purposes, not really needed here...)
-            cost = (self.discReward * fr[chosenIndex]) - pr
-            finalCost = tf.constant(cost, np.float32, name='finalcost')
+            cost = self.reward + ((self.discReward * fr[chosenIndex]) - pr)
+            print('Final cost is:')
+            print(cost)
+            print('\n')
 
             # Define backpropagation calculation
-            train_op = tf.train.GradientDescentOptimizer(self.learnRate).minimize(error)
+            train_op = tf.train.GradientDescentOptimizer(self.learnRate).minimize(errorsq)
 
             # Initialize all variables
             model = tf.initialize_all_variables()
             session.run(model)
 
-            #Calculate error
-            #print(session.run(cost))
-
             #Perform backpropagration
             self.costs.append(session.run(train_op))
             print(self.costs)
+
+            #Print current weights
+            print('W1: ')
+            print(self.w1.eval())
+            print('\n')
+            print('W2: ')
+            print(self.w2.eval())
+            print('\n\n')
 
         #Return next move
         return chosenIndex
