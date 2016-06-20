@@ -106,24 +106,28 @@ def runGame(isFirstGame):
     mainBoard = getNewBoard()
 
     while True: # main game loop
-
-
-
 ###
-        nextMoves = p.c4ai.getNextMoves(mainBoard, BLACK)
+        nextMoves = p.c4ai.getNextMoves(mainBoard, p.color)
 
         #Send moves to evaluator to get next move and update network(returns column number)
-        move = p.c4ai.evaluateMoves(mainBoard, nextMoves, isWinner(mainBoard, p.color), isWinner(mainBoard, p.oppcolor), isBoardFull(mainBoard))
+        move = p.c4ai.evaluateMoves(mainBoard, nextMoves, p.color, p.oppcolor, isWinner(mainBoard, p.color), isWinner(mainBoard, p.oppcolor), isBoardFull(mainBoard))
         column = move
-        animateComputerMoving(mainBoard, column)
+        animateComputerMoving(mainBoard, p, column)
         makeMove(mainBoard, p.color, column)
 ###
 
-        #column = getComputerMove(mainBoard,p)
-        #animateComputerMoving(mainBoard, p, column)
-        #makeMove(mainBoard, p.color, column)
-
         if isWinner(mainBoard, p.color):
+            #Update weights for winner
+            p.c4ai.evaluateMoves(p.c4ai.lastBoardState, mainBoard, p.color, p.oppcolor, True, False, False)
+
+            # Update weights for loser
+            if p.color == RED:
+                #Winner is red, so loser is black (P2)
+                P2.c4ai.evaluateMoves(P2.c4ai.lastBoardState, mainBoard, BLACK, RED, False, True, False)
+            else:
+                #Winner is black, so loser is red (P1)
+                P1.c4ai.evaluateMoves(P1.c4ai.lastBoardState, mainBoard, RED, BLACK, False, True, False)
+
             winnerImg = p.wimg
             break
 
@@ -135,10 +139,23 @@ def runGame(isFirstGame):
             turn = P1.color
 
         if isBoardFull(mainBoard):
+            # Update weights for current player for full board
+            p.c4ai.evaluateMoves(p.c4ai.lastBoardState, mainBoard, p.color, p.oppcolor, False, False, True)
+
+            # Update weights for other player
+            if p.color == RED:
+                # Current player is red, so update black (P2)
+                P2.c4ai.evaluateMoves(P2.c4ai.lastBoardState, mainBoard, BLACK, RED, False, False, True)
+            else:
+                # Current player is black, so update is red (P1)
+                P1.c4ai.evaluateMoves(P1.c4ai.lastBoardState, mainBoard, RED, BLACK, False, False, True)
+
             # A completely filled board means it's a tie.
             winnerImg = TIEWINNERIMG
             break
 
+        #Update last board state for currently player (used for later backward propagation if necessary)
+        p.c4ai.lastBoardState = mainBoard
     while True:
         # Keep looping until player clicks the mouse or quits.
         drawBoard(mainBoard)
@@ -147,6 +164,14 @@ def runGame(isFirstGame):
         FPSCLOCK.tick()
         for event in pygame.event.get(): # event handling loop
             if event.type == QUIT or (event.type == KEYUP and event.key == K_ESCAPE):
+                #Print costs for each player
+                print('Costs for player 1 were: ')
+                print(P1.c4ai.costs)
+                print('\n')
+                print('Costs for player 2 were: ')
+                print(P2.c4ai.costs)
+                print('\n')
+
                 pygame.quit()
                 sys.exit()
             elif event.type == MOUSEBUTTONUP:
