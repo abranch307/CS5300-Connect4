@@ -78,13 +78,9 @@ class C4AI:
         # Get expected reward
         self.yHat = self.forwardProp(chosenNextState)
         print('The expected reward for player %s is: %f\n' % (CurPlayerColor, self.yHat))
-        #print(self.yHat)
-        #print('\n')
 
         # Print actual reward
         print('The actual reward for player %s is: %f\n\n' % (CurPlayerColor, self.reward))
-        #print(self.reward)
-        #print('\n\n')
 
         # Perform cost function and get weight change gradients
         dJdW1, dJdW2 = self.costFunctionPrime(currentStateInput, chosenNextState)
@@ -140,10 +136,13 @@ class C4AI:
         # Forward propagate to find best
         # statesChoice = tf.Variable(self.forwardProp(input))
         statesChoice = self.forwardProp(input)
-        chosenIndex = np.argmax(statesChoice, 0)
 
-        # Choose are random move from states
-        # chosenIndex = random.randint(0, (columns.shape[0] - 1))
+        policy = np.random.rand(1, 1)
+        if policy > .2:
+            chosenIndex = np.argmax(statesChoice, 0)
+        else:
+            # Choose are random move from states
+            chosenIndex = random.randint(0, (columns.shape[0] - 1))
 
         return chosenIndex
 
