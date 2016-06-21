@@ -62,31 +62,74 @@ class C4AI:
                 I need to base the below move selection on a policy
             '''
             # Choose future based on policy (max, or random)
-            chosenIndex = self.chooseNextState(nextStateInputs, Columns)
-            chosenNextState = nextStateInputs[chosenIndex]
+            chosenIndex, chosenNextState = self.chooseNextState(nextStateInputs, Columns)
+            #chosenNextState = nextStateInputs[chosenIndex]
 
         # Calculate current reward
         if CurPlayerWin:
             self.reward = 50
+
+            # Get expected reward
+            self.yHat = self.forwardProp(chosenNextState)
+            print('The expected reward for player %s is: %f\n' % (CurPlayerColor, self.yHat))
+
+            # Print actual reward
+            print('The actual reward for player %s is: %f\n\n' % (CurPlayerColor, self.reward))
+
+            # Perform cost function and get weight change gradients
+            dJdW1, dJdW2 = self.costFunctionPrime(currentStateInput, chosenNextState)
+
+            # Add found error to costs array for later plotting
+            self.costs.append(self.err)
+
+            # Make weight changes (element-wise multiplication)
+            self.w1 = dJdW2 * .1
+            self.w2 = dJdW1 * .1
         elif OpponentWin:
             self.reward = -50
+
+            # Get expected reward
+            self.yHat = self.forwardProp(chosenNextState)
+            print('The expected reward for player %s is: %f\n' % (CurPlayerColor, self.yHat))
+
+            # Print actual reward
+            print('The actual reward for player %s is: %f\n\n' % (CurPlayerColor, self.reward))
+
+            # Perform cost function and get weight change gradients
+            dJdW1, dJdW2 = self.costFunctionPrime(currentStateInput, chosenNextState)
+
+            # Add found error to costs array for later plotting
+            self.costs.append(self.err)
+
+            # Make weight changes (element-wise multiplication)
+            self.w1 = dJdW2 * .1
+            self.w2 = dJdW1 * .1
+
         elif BoardFull:
             self.reward = 0.5
+
+            self.reward = -50
+
+            # Get expected reward
+            self.yHat = self.forwardProp(chosenNextState)
+            print('The expected reward for player %s is: %f\n' % (CurPlayerColor, self.yHat))
+
+            # Print actual reward
+            print('The actual reward for player %s is: %f\n\n' % (CurPlayerColor, self.reward))
+
+            # Perform cost function and get weight change gradients
+            dJdW1, dJdW2 = self.costFunctionPrime(currentStateInput, chosenNextState)
+
+            # Add found error to costs array for later plotting
+            self.costs.append(self.err)
+
+            # Make weight changes (element-wise multiplication)
+            self.w1 = dJdW2 * .1
+            self.w2 = dJdW1 * .1
         else:
             self.reward = 0.5
 
-        # Get expected reward
-        self.yHat = self.forwardProp(chosenNextState)
-        print('The expected reward for player %s is: %f\n' % (CurPlayerColor, self.yHat))
 
-        # Print actual reward
-        print('The actual reward for player %s is: %f\n\n' % (CurPlayerColor, self.reward))
-
-        # Perform cost function and get weight change gradients
-        dJdW1, dJdW2 = self.costFunctionPrime(currentStateInput, chosenNextState)
-
-        #Add found error to costs array for later plotting
-        self.costs.append(self.err)
 
         # Print gradients
         #print('Gradients for dJdW1 and dJdW2 respectively are: ')
@@ -102,10 +145,6 @@ class C4AI:
         #print('W2 before weight update: ')
         #print(self.w2)
         #print('\n\n')
-
-        # Make weight changes (element-wise multiplication)
-        self.w1 = dJdW2 * .001
-        self.w2 = dJdW1 * .001
 
         # Print new weights
         #print('W1 after weight update: ')
@@ -135,16 +174,21 @@ class C4AI:
     def chooseNextState(self, input, columns):
         # Forward propagate to find best
         # statesChoice = tf.Variable(self.forwardProp(input))
-        statesChoice = self.forwardProp(input)
+        statesRewards = self.forwardProp(input)
 
         policy = np.random.rand(1, 1)
         if policy > .2:
-            chosenIndex = np.argmax(statesChoice, 0)
+            nextIndex = np.argmax(statesRewards, 0)
+            chosenIndex = nextIndex.item(0)
+            chosenIndex = columns[chosenIndex].item(0)
         else:
             # Choose are random move from states
-            chosenIndex = random.randint(0, (columns.shape[0] - 1))
+            nextIndex = random.randint(0, (columns.shape[0] - 1))
+            chosenIndex = columns[nextIndex].item(0)
 
-        return chosenIndex
+
+
+        return chosenIndex, input[nextIndex]
 
     '''
     Function getNextMoves:
@@ -167,9 +211,10 @@ class C4AI:
         # Loop through columns in Connect 4 board
         for i in range(tempState.shape[0]):
             # Loop through every row within column (0 starts at top of column, so we need to loop backwards)
+            val = tempState.shape[1] - 1
             for j in range(tempState.shape[1] - 1, -1, -1):
                 # If element is empty, put current player into move and add to next moves list
-                if not tempState[i][j]:
+                if tempState[i][j] == None:
                     # Add player to empty cell then add tempstate to movesList
                     tempState[i][j] = PlayerNum
                     movesList.append(np.append(tempState, [[i, i, i, i, i, i]], axis=0))

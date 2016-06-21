@@ -6,6 +6,7 @@
 import random, copy, sys, pygame
 from pygame.locals import *
 from GameAI import C4AI
+import numpy as np
 
 BOARDWIDTH = 7  # how many spaces wide the board is
 BOARDHEIGHT = 6 # how many spaces tall the board is
@@ -174,7 +175,8 @@ def runGame(isFirstGame):
 
                 pygame.quit()
                 sys.exit()
-            elif event.type == MOUSEBUTTONUP:
+            #elif event.type == MOUSEBUTTONUP:
+            elif True:
                 return
 
 
