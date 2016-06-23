@@ -3,11 +3,10 @@
 # http://inventwithpython.com/pygame
 # Released under a "Simplified BSD" license
 
-import random, copy, sys, pygame
+import random, time, copy, sys, pygame
 from pygame.locals import *
 from GameAI import C4AI
 import numpy as np
-import time
 
 BOARDWIDTH = 7  # how many spaces wide the board is
 BOARDHEIGHT = 6 # how many spaces tall the board is
@@ -35,24 +34,24 @@ BLACK = 'black'
 EMPTY = None
 
 class Player:
-    color = None
-    oppcolor = None
-    wimg = None
-    c4ai = C4AI(42,6,1)
-    def __init__(self,c):
+    def __init__(self, c):
         self.color = c
-        if (self.color=='red'):
+        self.c4ai = C4AI(42, 6, 1)
+        if self.color == 'red':
             self.oppcolor = 'black'
             self.wimg = pygame.image.load('4row_p1winner.png')
-        elif (self.color=='black'):
+        elif self.color=='black':
             self.oppcolor = 'red'
             self.wimg = pygame.image.load('4row_p2winner.png')
-            
 
+
+'Initialize Players'
 P1 = Player(RED)
 P2 = Player(BLACK)
-bwins = 0
-rwins = 0
+
+'Load Weights'
+P1.c4ai.LoadWeights("P1Weights")
+P2.c4ai.LoadWeights("P2Weights")
 
 def main():
     global FPSCLOCK, DISPLAYSURF, REDPILERECT, BLACKPILERECT, REDTOKENIMG
@@ -90,22 +89,25 @@ def main():
 
 
 def runGame(isFirstGame):
-    global bwins
-    global rwins
     if isFirstGame:
         # Let the computer go first on the first game, so the player
         # can see how the tokens are dragged from the token piles.
         turn = P2.color
         p = P2
         showHelp = True
+
+        playerName = 'P2'
     else:
         # Randomly choose who goes first.
         if random.randint(0, 1) == 0:
             turn = P2.color
             p = P2
+
+            playerName = 'P2'
         else:
             turn = P1.color
             p = P1
+            playerName = 'P1'
         showHelp = False
 
     # Set up a blank board data structure.
@@ -113,65 +115,50 @@ def runGame(isFirstGame):
 
     while True: # main game loop
 ###
+        nextMoves = p.c4ai.getNextMoves(mainBoard, p.color)
 
-        if (p.color == BLACK):
-            nextMoves = p.c4ai.getNextMoves(mainBoard, p.color)
-
-            #Send moves to evaluator to get next move and update network(returns column number)
-            move = p.c4ai.evaluateMoves(mainBoard, nextMoves, p.color, p.oppcolor, isWinner(mainBoard, p.color), isWinner(mainBoard, p.oppcolor), isBoardFull(mainBoard))
-            column = move
-            #animateComputerMoving(mainBoard, p, column)
-            makeMove(mainBoard, p.color, column)
-        else:
-            column = random.randint(0,6)
-            while (not isValidMove(mainBoard,column)):
-                column = random.randint(0,6)
-            #animateComputerMoving(mainBoard, p, column)
-            makeMove(mainBoard, p.color, column)
+        #Send moves to evaluator to get next move and update network(returns column number)
+        move = p.c4ai.evaluateMoves(mainBoard, nextMoves, p.color, p.oppcolor, isWinner(mainBoard, p.color), isWinner(mainBoard, p.oppcolor), isBoardFull(mainBoard), playerName)
+        column = move
+        #animateComputerMoving(mainBoard, p, column)
+        makeMove(mainBoard, p.color, column)
 ###
 
         if isWinner(mainBoard, p.color):
-            print ("%s won" % p.color)
-
             #Update weights for winner
-            if (p.color == BLACK):
-                bwins += 1
-                p.c4ai.evaluateMoves(p.c4ai.lastBoardState, mainBoard, p.color, p.oppcolor, True, False, False)
+            p.c4ai.evaluateMoves(p.c4ai.lastBoardState, mainBoard, p.color, p.oppcolor, True, False, False, playerName)
 
             # Update weights for loser
             if p.color == RED:
-                rwins += 1
                 #Winner is red, so loser is black (P2)
-                P2.c4ai.evaluateMoves(P2.c4ai.lastBoardState, mainBoard, BLACK, RED, False, True, False)
-            #else:
+                P2.c4ai.evaluateMoves(P2.c4ai.lastBoardState, mainBoard, BLACK, RED, False, True, False, 'P2')
+            else:
                 #Winner is black, so loser is red (P1)
-                #P1.c4ai.evaluateMoves(P1.c4ai.lastBoardState, mainBoard, RED, BLACK, False, True, False)
+                P1.c4ai.evaluateMoves(P1.c4ai.lastBoardState, mainBoard, RED, BLACK, False, True, False, 'P1')
 
             winnerImg = p.wimg
-            print ("Wins: Red (Random) = %d, Black (AI) = %d" % (rwins,bwins))
-            print ("AI win rate = %f" % (bwins / (bwins+rwins)))
             break
 
         if (turn == P1.color):
             p = P2
             turn = P2.color
+            playerName = 'P2'
         elif (turn == P2.color):
             p = P1
             turn = P1.color
+            playerName = 'P1'
 
         if isBoardFull(mainBoard):
             # Update weights for current player for full board
-            print ("Tie")
-            
-            p.c4ai.evaluateMoves(p.c4ai.lastBoardState, mainBoard, p.color, p.oppcolor, False, False, True)
+            p.c4ai.evaluateMoves(p.c4ai.lastBoardState, mainBoard, p.color, p.oppcolor, False, False, True, playerName)
 
             # Update weights for other player
             if p.color == RED:
                 # Current player is red, so update black (P2)
-                P2.c4ai.evaluateMoves(P2.c4ai.lastBoardState, mainBoard, BLACK, RED, False, False, True)
+                P2.c4ai.evaluateMoves(P2.c4ai.lastBoardState, mainBoard, BLACK, RED, False, False, True, 'P2')
             else:
                 # Current player is black, so update is red (P1)
-                P1.c4ai.evaluateMoves(P1.c4ai.lastBoardState, mainBoard, RED, BLACK, False, False, True)
+                P1.c4ai.evaluateMoves(P1.c4ai.lastBoardState, mainBoard, RED, BLACK, False, False, True, 'P1')
 
             # A completely filled board means it's a tie.
             winnerImg = TIEWINNERIMG
@@ -187,7 +174,8 @@ def runGame(isFirstGame):
         FPSCLOCK.tick()
         time.sleep(1/60)
         return
-        '''for event in pygame.event.get(): # event handling loop
+
+        for event in pygame.event.get(): # event handling loop
             if event.type == QUIT or (event.type == KEYUP and event.key == K_ESCAPE):
                 #Print costs for each player
                 print('Costs for player 1 were: ')
@@ -201,7 +189,7 @@ def runGame(isFirstGame):
                 sys.exit()
             #elif event.type == MOUSEBUTTONUP:
             elif True:
-                return'''
+                return
 
 
 def makeMove(board, player, column):

@@ -6,8 +6,6 @@
 import random, copy, sys, pygame
 from pygame.locals import *
 from GameAI import C4AI
-import numpy as np
-import time
 
 BOARDWIDTH = 7  # how many spaces wide the board is
 BOARDHEIGHT = 6 # how many spaces tall the board is
@@ -33,31 +31,18 @@ TEXTCOLOR = WHITE
 RED = 'red'
 BLACK = 'black'
 EMPTY = None
+HUMAN = 'human'
+COMPUTER = 'computer'
 
-class Player:
-    color = None
-    oppcolor = None
-    wimg = None
-    c4ai = C4AI(42,6,1)
-    def __init__(self,c):
-        self.color = c
-        if (self.color=='red'):
-            self.oppcolor = 'black'
-            self.wimg = pygame.image.load('4row_p1winner.png')
-        elif (self.color=='black'):
-            self.oppcolor = 'red'
-            self.wimg = pygame.image.load('4row_p2winner.png')
-            
-
-P1 = Player(RED)
-P2 = Player(BLACK)
-bwins = 0
-rwins = 0
 
 def main():
     global FPSCLOCK, DISPLAYSURF, REDPILERECT, BLACKPILERECT, REDTOKENIMG
-    global BLACKTOKENIMG, BOARDIMG, ARROWIMG, ARROWRECT
-    global WINNERRECT, TIEWINNERIMG
+    global BLACKTOKENIMG, BOARDIMG, ARROWIMG, ARROWRECT, HUMANWINNERIMG
+    global COMPUTERWINNERIMG, WINNERRECT, TIEWINNERIMG
+
+    # Create AI class
+    global c4ai
+    c4ai = C4AI(42, 6, 1)
 
     pygame.init()
     FPSCLOCK = pygame.time.Clock()
@@ -73,8 +58,10 @@ def main():
     BOARDIMG = pygame.image.load('4row_board.png')
     BOARDIMG = pygame.transform.smoothscale(BOARDIMG, (SPACESIZE, SPACESIZE))
 
+    HUMANWINNERIMG = pygame.image.load('4row_humanwinner.png')
+    COMPUTERWINNERIMG = pygame.image.load('4row_computerwinner.png')
     TIEWINNERIMG = pygame.image.load('4row_tie.png')
-    WINNERRECT = P1.wimg.get_rect()
+    WINNERRECT = HUMANWINNERIMG.get_rect()
     WINNERRECT.center = (int(WINDOWWIDTH / 2), int(WINDOWHEIGHT / 2))
 
     ARROWIMG = pygame.image.load('4row_arrow.png')
@@ -83,125 +70,86 @@ def main():
     ARROWRECT.centery = REDPILERECT.centery
 
     isFirstGame = True
-    
+
     while True:
         runGame(isFirstGame)
         isFirstGame = False
 
 
 def runGame(isFirstGame):
-    global bwins
-    global rwins
     if isFirstGame:
         # Let the computer go first on the first game, so the player
         # can see how the tokens are dragged from the token piles.
-        turn = P2.color
-        p = P2
+        turn = COMPUTER
         showHelp = True
     else:
         # Randomly choose who goes first.
         if random.randint(0, 1) == 0:
-            turn = P2.color
-            p = P2
+            turn = COMPUTER
         else:
-            turn = P1.color
-            p = P1
+            turn = HUMAN
         showHelp = False
 
     # Set up a blank board data structure.
     mainBoard = getNewBoard()
 
     while True: # main game loop
-###
+        if turn == HUMAN:
+            # Human player's turn.
+            #getHumanMove(mainBoard, showHelp)
+            #if showHelp:
+                # turn off help arrow after the first move
+            #    showHelp = False
+            #if isWinner(mainBoard, RED):
+            #    winnerImg = HUMANWINNERIMG
+            #    break
+            #turn = COMPUTER # switch to other player's turn
 
-        if (p.color == BLACK):
-            nextMoves = p.c4ai.getNextMoves(mainBoard, p.color)
+            # Computer player's turn.
+            column = getComputerMove(mainBoard)
+            animateComputerMoving(mainBoard, column)
+            makeMove(mainBoard, RED, column)
+            if isWinner(mainBoard, RED):
+                winnerImg = COMPUTERWINNERIMG
+                break
+            turn = COMPUTER # switch to other player's turn
+        else:
+            #Get list of all moves
+            nextMoves = c4ai.getNextMoves(mainBoard, BLACK)
 
             #Send moves to evaluator to get next move and update network(returns column number)
-            move = p.c4ai.evaluateMoves(mainBoard, nextMoves, p.color, p.oppcolor, isWinner(mainBoard, p.color), isWinner(mainBoard, p.oppcolor), isBoardFull(mainBoard))
+            move = c4ai.evaluateMoves(mainBoard, nextMoves, isWinner(mainBoard, BLACK), isWinner(mainBoard, RED), isBoardFull(mainBoard))
+
+            #Make next move
+
+
+            # Computer player's turn.
+            #column = getComputerMove(mainBoard)
             column = move
-            #animateComputerMoving(mainBoard, p, column)
-            makeMove(mainBoard, p.color, column)
-        else:
-            column = random.randint(0,6)
-            while (not isValidMove(mainBoard,column)):
-                column = random.randint(0,6)
-            #animateComputerMoving(mainBoard, p, column)
-            makeMove(mainBoard, p.color, column)
-###
-
-        if isWinner(mainBoard, p.color):
-            print ("%s won" % p.color)
-
-            #Update weights for winner
-            if (p.color == BLACK):
-                bwins += 1
-                p.c4ai.evaluateMoves(p.c4ai.lastBoardState, mainBoard, p.color, p.oppcolor, True, False, False)
-
-            # Update weights for loser
-            if p.color == RED:
-                rwins += 1
-                #Winner is red, so loser is black (P2)
-                P2.c4ai.evaluateMoves(P2.c4ai.lastBoardState, mainBoard, BLACK, RED, False, True, False)
-            #else:
-                #Winner is black, so loser is red (P1)
-                #P1.c4ai.evaluateMoves(P1.c4ai.lastBoardState, mainBoard, RED, BLACK, False, True, False)
-
-            winnerImg = p.wimg
-            print ("Wins: Red (Random) = %d, Black (AI) = %d" % (rwins,bwins))
-            print ("AI win rate = %f" % (bwins / (bwins+rwins)))
-            break
-
-        if (turn == P1.color):
-            p = P2
-            turn = P2.color
-        elif (turn == P2.color):
-            p = P1
-            turn = P1.color
+            animateComputerMoving(mainBoard, column)
+            makeMove(mainBoard, BLACK, column)
+            if isWinner(mainBoard, BLACK):
+                winnerImg = COMPUTERWINNERIMG
+                break
+            turn = HUMAN # switch to other player's turn
 
         if isBoardFull(mainBoard):
-            # Update weights for current player for full board
-            print ("Tie")
-            
-            p.c4ai.evaluateMoves(p.c4ai.lastBoardState, mainBoard, p.color, p.oppcolor, False, False, True)
-
-            # Update weights for other player
-            if p.color == RED:
-                # Current player is red, so update black (P2)
-                P2.c4ai.evaluateMoves(P2.c4ai.lastBoardState, mainBoard, BLACK, RED, False, False, True)
-            else:
-                # Current player is black, so update is red (P1)
-                P1.c4ai.evaluateMoves(P1.c4ai.lastBoardState, mainBoard, RED, BLACK, False, False, True)
-
             # A completely filled board means it's a tie.
             winnerImg = TIEWINNERIMG
             break
 
-        #Update last board state for currently player (used for later backward propagation if necessary)
-        p.c4ai.lastBoardState = mainBoard
     while True:
         # Keep looping until player clicks the mouse or quits.
         drawBoard(mainBoard)
         DISPLAYSURF.blit(winnerImg, WINNERRECT)
         pygame.display.update()
         FPSCLOCK.tick()
-        time.sleep(1/60)
-        return
-        '''for event in pygame.event.get(): # event handling loop
+        for event in pygame.event.get(): # event handling loop
             if event.type == QUIT or (event.type == KEYUP and event.key == K_ESCAPE):
-                #Print costs for each player
-                print('Costs for player 1 were: ')
-                print(P1.c4ai.costs)
-                print('\n')
-                print('Costs for player 2 were: ')
-                print(P2.c4ai.costs)
-                print('\n')
-
                 pygame.quit()
                 sys.exit()
-            #elif event.type == MOUSEBUTTONUP:
-            elif True:
-                return'''
+            elif event.type == MOUSEBUTTONUP:
+                return
 
 
 def makeMove(board, player, column):
@@ -306,19 +254,15 @@ def animateDroppingToken(board, column, color):
         FPSCLOCK.tick()
 
 
-def animateComputerMoving(board, P, column):
-    if (P.color == BLACK):
-        x = BLACKPILERECT.left
-        y = BLACKPILERECT.top
-    elif (P.color == RED):
-        x = REDPILERECT.left
-        y = REDPILERECT.top
+def animateComputerMoving(board, column):
+    x = BLACKPILERECT.left
+    y = BLACKPILERECT.top
     speed = 1.0
     # moving the black tile up
     while y > (YMARGIN - SPACESIZE):
         y -= int(speed)
         speed += 0.5
-        drawBoard(board, {'x':x, 'y':y, 'color':P.color})
+        drawBoard(board, {'x':x, 'y':y, 'color':BLACK})
         pygame.display.update()
         FPSCLOCK.tick()
     # moving the black tile over
@@ -327,20 +271,20 @@ def animateComputerMoving(board, P, column):
     while x > (XMARGIN + column * SPACESIZE):
         x -= int(speed)
         speed += 0.5
-        drawBoard(board, {'x':x, 'y':y, 'color':P.color})
+        drawBoard(board, {'x':x, 'y':y, 'color':BLACK})
         pygame.display.update()
         FPSCLOCK.tick()
     # dropping the black tile
-    animateDroppingToken(board, column, P.color)
+    animateDroppingToken(board, column, BLACK)
 
 
-def getComputerMove(board,P):
-    potentialMoves = getPotentialMoves(board, P.color, DIFFICULTY)
+def getComputerMove(board):
+    potentialMoves = getPotentialMoves(board, BLACK, DIFFICULTY)
     # get the best fitness from the potential moves
-    bestMoveFitness = None
+    bestMoveFitness = -1
     for i in range(BOARDWIDTH):
         if potentialMoves[i] > bestMoveFitness and isValidMove(board, i):
-            bestMoveFitness = max(bestMoveFitness,potentialMoves[i])
+            bestMoveFitness = potentialMoves[i]
     # find all potential moves that have this best fitness
     bestMoves = []
     for i in range(len(potentialMoves)):
@@ -419,22 +363,22 @@ def isWinner(board, tile):
     # check horizontal spaces
     for x in range(BOARDWIDTH - 3):
         for y in range(BOARDHEIGHT):
-            if board[x][y] == board[x+1][y] == board[x+2][y] == board[x+3][y] == tile:
+            if board[x][y] == tile and board[x+1][y] == tile and board[x+2][y] == tile and board[x+3][y] == tile:
                 return True
     # check vertical spaces
     for x in range(BOARDWIDTH):
         for y in range(BOARDHEIGHT - 3):
-            if board[x][y] == board[x][y+1] == board[x][y+2] == board[x][y+3] == tile:
+            if board[x][y] == tile and board[x][y+1] == tile and board[x][y+2] == tile and board[x][y+3] == tile:
                 return True
     # check / diagonal spaces
     for x in range(BOARDWIDTH - 3):
         for y in range(3, BOARDHEIGHT):
-            if board[x][y] == board[x+1][y-1] == board[x+2][y-2] == board[x+3][y-3] == tile:
+            if board[x][y] == tile and board[x+1][y-1] == tile and board[x+2][y-2] == tile and board[x+3][y-3] == tile:
                 return True
     # check \ diagonal spaces
     for x in range(BOARDWIDTH - 3):
         for y in range(BOARDHEIGHT - 3):
-            if board[x][y] == board[x+1][y+1] == board[x+2][y+2] == board[x+3][y+3] == tile:
+            if board[x][y] == tile and board[x+1][y+1] == tile and board[x+2][y+2] == tile and board[x+3][y+3] == tile:
                 return True
     return False
 
